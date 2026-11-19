@@ -5,7 +5,10 @@ using Application.Abstractions.Messaging;
 using Application.Features.Courses.CreateCourse;
 using Application.Features.Courses.GetAllCourses;
 using Application.Features.Courses.GetCourseById;
+using Application.Features.Courses.UpdateCourse;
+using Application.Features.Courses.DeleteCourse;
 using Domain.Common;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory;
 
 public static class CourseEndpoints
 {
@@ -21,10 +24,16 @@ public static class CourseEndpoints
         group.MapPost("/", Create)
             .WithName("CreateCourse")
             .WithSummary("Create a new course");
+        group.MapDelete("/{id:guid}", Delete)
+.WithName("DeleteCourse")
+.WithSummary("Delete a course");
 
         group.MapGet("/{id:guid}", GetById)
             .WithName("GetCourseById")
             .WithSummary("Get course by ID");
+        group.MapPut("/{id:guid}", Update)
+    .WithName("UpdateCourse")
+    .WithSummary("Update an existing course");
     }
 
     private static async Task<IResult> GetAll(
@@ -37,6 +46,17 @@ public static class CourseEndpoints
             ? TypedResults.Ok(result.Value)
             : result.ToProblemDetails();
     }
+    private static async Task<IResult> Delete(
+Guid id,
+ICommandHandler<DeleteCourseCommand, Result> handler,
+CancellationToken cancellationToken)
+    {
+        var result = await handler.HandleAsync(new DeleteCourseCommand(id),
+        cancellationToken);
+        return result.Match(
+        onSuccess: () => TypedResults.NoContent(),
+        onFailure: _ => result.ToProblemDetails());
+    }
 
     private static async Task<IResult> Create(
         CreateCourseCommand command,
@@ -48,7 +68,19 @@ public static class CourseEndpoints
             ? TypedResults.CreatedAtRoute(result.Value, "GetCourseById", new { id = result.Value!.Id })
             : result.ToProblemDetails();
     }
+    private static async Task<IResult> Update(
+    Guid id,
+    UpdateCourseRequest request,
+    ICommandHandler<UpdateCourseCommand, Result<UpdateCourseResponse>> handler,
+    CancellationToken cancellationToken)
+    {
+        var command = new UpdateCourseCommand(id, request.Title, request.Code, request.Credits);
+        var result = await handler.HandleAsync(command, cancellationToken);
 
+        return result.Match(
+            onSuccess: value => TypedResults.Ok(value),
+            onFailure: _ => result.ToProblemDetails());
+    }
     private static async Task<IResult> GetById(
         Guid id,
         IQueryHandler<GetCourseByIdQuery, Result<GetCourseByIdResponse>> handler,
@@ -61,3 +93,4 @@ public static class CourseEndpoints
             : result.ToProblemDetails();
     }
 }
+public sealed record UpdateCourseRequest(string Title, string Code, int Credits);
